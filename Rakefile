@@ -4,7 +4,13 @@ PROGRAMMER = 'usbtiny'
 
 desc 'compile program'
 task :compile do
-  system "avr-gcc -g -Os -Wall -mcall-prologues -mmcu=atmega8 small_matrix.c"
+  system "avr-gcc -g -Os -Wall -mcall-prologues -mmcu=atmega8 -o small_matrix.o small_matrix.c"
+  system "avr-objcopy -R .eeprom -O ihex small_matrix.o small_matrix.hex"
+end
+
+desc 'clean transient files'
+task :clean do
+  system 'rm *.o *.hex'
 end
 
 namespace :burn do
