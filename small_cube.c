@@ -1,12 +1,17 @@
 /*
- * small_matrix.c
+ * small_cube.c
+ *
+ * a controller for managing a 4x4x4 LED cube
+ * the controller connects to 2 shift registers (74HC595) to control the 16 LEDs on each row
+ * the rows are scanned and are turned on individually via a BC337 NPN transistor
  *
  * Created: 5/28/2011 1:11:02 PM
- *  Author: Josh
+ * Author: Josh
  */ 
 
 #define F_CPU 16000000
 #define BAUD_RATE 9600
+#define BAUD_PRESCALE (((F_CPU / (BAUD_RATE * 16UL))) - 1)
 
 #include <avr/io.h>
 #include <inttypes.h>
@@ -19,7 +24,6 @@
 #define CLOCK_PIN	2
 #define LATCH_PIN	3
 
-
 #define ROW_DDR  DDRB
 #define ROW_PORT PORTB
 #define ROW0_PIN 0
@@ -30,16 +34,19 @@
 
 void uart_init() {
 	
-	// set baud rate
-	UBRRH = 0;
-	UBRRL = F_CPU/16/BAUD_RATE-1;
-	
-	
+  //UBRRL = (uint8_t) (F_CPU / (16UL * BAUD_RATE)) - 1; 
+  //UBRRH = (uint8_t) ((F_CPU / (16UL * BAUD_RATE)) - 1) >>8;
+  //
+  
 	// enable receiver and transmitter
-	UCSRB = (1 << RXEN) | (1 << TXEN); 
+	UCSRB |= (1 << RXEN) | (1 << TXEN); 
 
 	// frame format: 8 data bits, 2 stop bits
-	UCSRC = (1 << USBS) | (3 << UCSZ0);
+	UCSRC |= (1 << URSEL) | (1 << UCSZ0) | (1 << UCSZ1);
+
+  UBRRH = BAUD_PRESCALE>>8;
+  UBRRL = BAUD_PRESCALE;
+	
 }
 
 unsigned int uart_read_char() {
@@ -101,42 +108,45 @@ void shift_register_write(unsigned int data) {
 
 int main(void)
 {
-	ROW_DDR = 0xFF;
-	ROW_PORT = 0x0;
-	
 	uart_init();
+  /*
+	ROW_DDR  |= _BV(ROW0_PIN) | _BV(ROW1_PIN) | _BV(ROW2_PIN) | _BV(ROW3_PIN);
+	ROW_PORT |= _BV(ROW0_PIN) | _BV(ROW1_PIN) | _BV(ROW2_PIN) | _BV(ROW3_PIN);
+	
 	shift_register_init();
 	
 	unsigned int i;
 	
 	for (i=0;i<4;i++)
 	{
-		ROW_PORT = _BV(ROW0_PIN);
-		shift_register_write(SPCR);
+		ROW_PORT = _BV(i);
+		shift_register_write(0xFF);
 		shift_register_write(0xFF);
 		shift_register_update();
-		_delay_ms(4000);
+		_delay_ms(100);
 	}
+
+  ROW_PORT |= _BV(ROW0_PIN);
 	
 	for (i=0;i<=128;i++) {
 		shift_register_write(i);
 		shift_register_update();
-		_delay_ms(10);
+		_delay_ms(100);
 	}	
-	
 	shift_register_clear();
 	
-	_delay_ms(5000);
-	
+	_delay_ms(5);
+	*/
     while(1)
     {
-        unsigned int data = uart_read_char();
+      uart_put_char('>');
+      char data = uart_read_char();
 		
-		shift_register_write(data);
-		shift_register_update();
-		
-		uart_put_char('[');
-		uart_put_char(data);
-		uart_put_char(']');			
+      shift_register_write(data);
+      shift_register_update();
+      
+      uart_put_char('[');
+      uart_put_char(data);
+      uart_put_char(']');			
     }
 }
