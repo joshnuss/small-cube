@@ -16,6 +16,7 @@
 #include <avr/io.h>
 #include <inttypes.h>
 #include <util/delay.h>
+#include <avr/interrupt.h>
 
 #define SHIFT_REGISTER_DDR  DDRC
 #define SHIFT_REGISTER_PORT PORTC
@@ -104,7 +105,7 @@ void shift_register_write(unsigned int data) {
 
 #define CUBE_SIZE 4
 
-uint16_t data[CUBE_SIZE];
+volatile uint16_t data[CUBE_SIZE];
 
 void cube_draw_level(uint8_t level) {
   uint16_t value = data[level];
@@ -138,6 +139,15 @@ void cube_draw() {
     cube_draw_level(i);
 }
 
+void timer_init() {
+  TIMSK0 = _BV(OCIE0A);
+  TCCR0A = _BV(WGM01);
+  TCCR0B = _BV(CS02) | _BV(CS00); // Clock / 1024
+  OCR0A = 60;          // 0.001024*244 ~= .25 SIG_OUTPUT_COMPARE0A will be triggered 4 times per second.
+
+  sei(); 
+}
+
 int main(void)
 {
   ROW_DDR  |= ROW_MASK;
@@ -146,30 +156,70 @@ int main(void)
   uart_init();
   shift_register_init();
   cube_init();
+  timer_init();
   
   unsigned int i, j;
-
-  while(1) {
-    cube_set_all(0xFFFF);
+    cube_set_all(0);
     for (i=0;i<4;i++)
     {
-      cube_draw_level(i);
-      _delay_ms(1000);
+   //   cube_draw_level(i);
+      cube_set_level(i, 0x0);
+      _delay_ms(100);
 
       for (j=0;j<4;j++) {
         cube_set_level(i, 15 << (j*4));
-        cube_draw_level(i);
-        _delay_ms(100);
+  //      cube_draw_level(i);
+        _delay_ms(20);
       }	
       for (j=2;j>-1;j--) {
         cube_set_level(i, 15 << (j*4));
-        cube_draw_level(i);
-        _delay_ms(100);
+  //      cube_draw_level(i);
+        _delay_ms(20);
       }	
 
-      shift_register_clear();
+    }
+  for(i=0;i<5;i++) {
+    cube_init();
+    cube_set_level(1, 1632);
+    cube_set_level(2, 1632);
+    _delay_ms(100);
+    cube_set_level(1, 63903);
+    cube_set_level(2, 63903);
+    cube_set_level(0, 0xFFFF);
+    cube_set_level(3, 0xFFFF);
+    
+    _delay_ms(100);
+  }
+
+
+  while(1) {
+    cube_init();
+    
+  cube_init();
+
+    for (i=0;i<4;i++) {
+      cube_set_level(3, 15);
+      cube_set_level(2, 1);
+      cube_set_level(1, 7);
+      cube_set_level(0, 1);
+        data[0] = data[0] + ( data[0] << 4 );
+        data[1] = data[1] + ( data[1] << 4 );
+        data[2] = data[2] + ( data[2] << 4 );
+        data[3] = data[3] + ( data[3] << 4 );
+        _delay_ms(300);
+      
+
+      for (j=0;j<4;j++) {
+        data[0] = data[0] << 4;
+        data[1] = data[1] << 4;
+        data[2] = data[2] << 4;
+        data[3] = data[3] << 4;
+        _delay_ms(300);
+      }
     }
   }
+
+
 	
   ROW_PORT &= ~ROW_MASK;
   ROW_PORT |= _BV(ROW2_PIN);
@@ -184,4 +234,13 @@ int main(void)
     uart_put_char(data);
     uart_put_char(']');			
   }
+}
+
+volatile int counter = 0;
+
+ISR(SIG_OUTPUT_COMPARE0A)
+{
+  cube_draw_level(counter % 4);
+
+  counter++; 
 }

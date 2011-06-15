@@ -3,7 +3,7 @@ OBJ            = small_cube.o
 PROGRAMMER     = usbtiny
 MCU_TARGET     = atmega48 
 AVRDUDE_TARGET = atmega48
-OPTIMIZE       = -Os
+OPTIMIZE       = -Os 
 DEFS           =
 LIBS           =
 HZ             = 16000000
@@ -14,7 +14,7 @@ CC             = avr-gcc
  
 # Override is only needed by avr-lib build system.
  
-override CFLAGS        = -g -DF_CPU=$(HZ) -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS)
+override CFLAGS        =  -g -DF_CPU=$(HZ) -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS)
 override LDFLAGS       = -Wl,-Map,$(PRG).map
  
 OBJCOPY        = avr-objcopy
