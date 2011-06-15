@@ -2,3 +2,7 @@
 *.hex
 *.map
 *.out
+*.bin
+*.elf
+*.lst
+*.srec

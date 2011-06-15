@@ -10,8 +10,8 @@
  */ 
 
 #define F_CPU 16000000
-#define BAUD_RATE 9600
-#define BAUD_PRESCALE (((F_CPU / (BAUD_RATE * 16UL))) - 1)
+#define BAUD_RATE 9600UL
+#define BAUD_PRESCALE ((F_CPU / (BAUD_RATE << 4)) - 1)
 
 #include <avr/io.h>
 #include <inttypes.h>
@@ -30,36 +30,32 @@
 #define ROW1_PIN 1
 #define ROW2_PIN 2
 #define ROW3_PIN 3
+#define ROW_MASK (ROW0_PIN | ROW1_PIN | ROW2_PIN | ROW3_PIN)
 
 
 void uart_init() {
 	
-  //UBRRL = (uint8_t) (F_CPU / (16UL * BAUD_RATE)) - 1; 
-  //UBRRH = (uint8_t) ((F_CPU / (16UL * BAUD_RATE)) - 1) >>8;
-  //
+  UBRR0H = (uint8_t)BAUD_PRESCALE >> 8;
+  UBRR0L = (uint8_t)BAUD_PRESCALE;
   
+	// frame format: no partiy, 8 data bits, 1 stop bits
+  UCSR0C |= (0 << USBS0) | (1 << UCSZ01) | (1 << UCSZ00);
+
 	// enable receiver and transmitter
-	UCSRB |= (1 << RXEN) | (1 << TXEN); 
-
-	// frame format: 8 data bits, 2 stop bits
-	UCSRC |= (1 << URSEL) | (1 << UCSZ0) | (1 << UCSZ1);
-
-  UBRRH = BAUD_PRESCALE>>8;
-  UBRRL = BAUD_PRESCALE;
-	
+	UCSR0B |= (1 << RXEN0) | (1 << TXEN0); 
 }
 
 unsigned int uart_read_char() {
-	while(!(UCSRA & (1 << RXC)))
+	while(!(UCSR0A & (1 << RXC0)))
 		;
 	
-	return UDR; 
+	return UDR0; 
 }
 
 void uart_put_char(unsigned int data) {
-	while (!(UCSRA & (1 << UDRE)))
+	while (!(UCSR0A & (1 << UDRE0)))
 		;
-	UDR = data;
+	UDR0 = data;
 }
 
 
@@ -108,38 +104,50 @@ void shift_register_write(unsigned int data) {
 
 int main(void)
 {
-	uart_init();
-  /*
-	ROW_DDR  |= _BV(ROW0_PIN) | _BV(ROW1_PIN) | _BV(ROW2_PIN) | _BV(ROW3_PIN);
-	ROW_PORT |= _BV(ROW0_PIN) | _BV(ROW1_PIN) | _BV(ROW2_PIN) | _BV(ROW3_PIN);
-	
-	shift_register_init();
-	
-	unsigned int i;
-	
-	for (i=0;i<4;i++)
-	{
-		ROW_PORT = _BV(i);
-		shift_register_write(0xFF);
-		shift_register_write(0xFF);
-		shift_register_update();
-		_delay_ms(100);
-	}
+  SPCR = 0;
 
-  ROW_PORT |= _BV(ROW0_PIN);
+  uart_init();
+
+  ROW_DDR  |= ROW_MASK;
+  ROW_PORT &= ~ROW_MASK;
+
+  shift_register_init();
+  shift_register_clear();
+
+  unsigned int i, j;
+
+  for (i=0;i<4;i++)
+  {
+    ROW_PORT &= ~ROW_MASK;
+    ROW_PORT |= _BV(i);
+    shift_register_write(0xFF);
+    shift_register_write(0xFF);
+    shift_register_update();
+    _delay_ms(1000);
+
+    shift_register_clear();
+
+    for (j=0;j<4;j++) {
+      uint16_t x = 15 << (j*4);
+      shift_register_write(x);
+      shift_register_write(x >> 8);
+      shift_register_update();
+      _delay_ms(200);
+    }	
+    for (j=2;j>-1;j--) {
+      uint16_t x = 15 << (j*4);
+      shift_register_write(x);
+      shift_register_write(x >> 8);
+      shift_register_update();
+      _delay_ms(200);
+    }	
+
+    shift_register_clear();
+  }
+
 	
-	for (i=0;i<=128;i++) {
-		shift_register_write(i);
-		shift_register_update();
-		_delay_ms(100);
-	}	
-	shift_register_clear();
-	
-	_delay_ms(5);
-	*/
     while(1)
     {
-      uart_put_char('>');
       char data = uart_read_char();
 		
       shift_register_write(data);
