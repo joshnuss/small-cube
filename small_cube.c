@@ -30,7 +30,7 @@
 #define ROW1_PIN 1
 #define ROW2_PIN 2
 #define ROW3_PIN 3
-#define ROW_MASK (ROW0_PIN | ROW1_PIN | ROW2_PIN | ROW3_PIN)
+#define ROW_MASK (_BV( ROW0_PIN ) | _BV( ROW1_PIN ) | _BV( ROW2_PIN ) | _BV( ROW3_PIN ))
 
 
 void uart_init() {
@@ -102,59 +102,86 @@ void shift_register_write(unsigned int data) {
 }
 
 
+#define CUBE_SIZE 4
+
+uint16_t data[CUBE_SIZE];
+
+void cube_draw_level(uint8_t level) {
+  uint16_t value = data[level];
+
+  ROW_PORT &= ~ROW_MASK;
+  ROW_PORT |= _BV(level);
+
+  shift_register_write(value);
+  shift_register_write(value >> 8);
+  shift_register_update();
+}
+
+void cube_init() {
+  uint8_t i;
+  for(i=0;i<CUBE_SIZE;i++)
+    data[i] = 0;
+}
+
+void cube_set_all(uint16_t value) {
+  uint8_t i;
+  for(i=0;i<CUBE_SIZE;i++)
+    data[i] = value;
+}
+void cube_set_level(uint8_t level, uint16_t value) {
+  data[level] = value;
+}
+
+void cube_draw() {
+  uint8_t i;
+  for(i=0;i<CUBE_SIZE;i++)
+    cube_draw_level(i);
+}
+
 int main(void)
 {
-  SPCR = 0;
-
-  uart_init();
-
   ROW_DDR  |= ROW_MASK;
   ROW_PORT &= ~ROW_MASK;
 
+  uart_init();
   shift_register_init();
-  shift_register_clear();
-
+  cube_init();
+  
   unsigned int i, j;
 
-  for (i=0;i<4;i++)
-  {
-    ROW_PORT &= ~ROW_MASK;
-    ROW_PORT |= _BV(i);
-    shift_register_write(0xFF);
-    shift_register_write(0xFF);
-    shift_register_update();
-    _delay_ms(1000);
-
-    shift_register_clear();
-
-    for (j=0;j<4;j++) {
-      uint16_t x = 15 << (j*4);
-      shift_register_write(x);
-      shift_register_write(x >> 8);
-      shift_register_update();
-      _delay_ms(200);
-    }	
-    for (j=2;j>-1;j--) {
-      uint16_t x = 15 << (j*4);
-      shift_register_write(x);
-      shift_register_write(x >> 8);
-      shift_register_update();
-      _delay_ms(200);
-    }	
-
-    shift_register_clear();
-  }
-
-	
-    while(1)
+  while(1) {
+    cube_set_all(0xFFFF);
+    for (i=0;i<4;i++)
     {
-      char data = uart_read_char();
-		
-      shift_register_write(data);
-      shift_register_update();
-      
-      uart_put_char('[');
-      uart_put_char(data);
-      uart_put_char(']');			
+      cube_draw_level(i);
+      _delay_ms(1000);
+
+      for (j=0;j<4;j++) {
+        cube_set_level(i, 15 << (j*4));
+        cube_draw_level(i);
+        _delay_ms(100);
+      }	
+      for (j=2;j>-1;j--) {
+        cube_set_level(i, 15 << (j*4));
+        cube_draw_level(i);
+        _delay_ms(100);
+      }	
+
+      shift_register_clear();
     }
+  }
+	
+  ROW_PORT &= ~ROW_MASK;
+  ROW_PORT |= _BV(ROW2_PIN);
+  while(1)
+  {
+    char data = uart_read_char();
+  
+    shift_register_write(data);
+    shift_register_update();
+    
+    uart_put_char('[');
+    uart_put_char(data);
+    uart_put_char(']');			
+  }
 }
